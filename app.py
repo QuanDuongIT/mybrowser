@@ -2,7 +2,7 @@ from flask import Flask, request, render_template_string
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-
+import os
 app = Flask(__name__)
 
 HTML = """
@@ -103,13 +103,17 @@ HTML = """
 
 def render_page(url):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
-        page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(1500)
-        html = page.content()
-        browser.close()
-        return html
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-setuid-sandbox"]
+        )
+        try:
+            page = browser.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(1500)
+            return page.content()
+        finally:
+            browser.close()
 
 
 def proxy_dom(html, base_url):
@@ -138,4 +142,5 @@ def index():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

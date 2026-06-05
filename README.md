@@ -9,4 +9,6 @@ python -m pip install flask playwright
 python -m playwright install
 python -m pip install google-auth
 
+pip freeze > requirements.txt
+
 python app.py
