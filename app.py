@@ -46,9 +46,9 @@ HTML = """
             max-width: 1400px;
             margin: 0 auto;
             border: 1px solid #ddd;
-            padding: 25px;
             background: white;
             overflow-x: auto;
+            padding: 0 50px;
         }
 
         .highlight {
