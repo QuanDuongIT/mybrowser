@@ -11,5 +11,5 @@ services:
       pip install -r requirements.txt
 
     startCommand: |
-      python -m playwright install --with-deps chromium
+      PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright python -m playwright install chromium
       gunicorn app:app --timeout 120
