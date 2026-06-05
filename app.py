@@ -10,25 +10,59 @@ HTML = """
 <!doctype html>
 <html>
 <head>
+    <meta charset="utf-8">
     <title>Safe DOM Editor</title>
 
     <style>
-        body { font-family: Arial; margin: 10px; }
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f5f5f5;
+        }
 
         .toolbar {
-            padding: 10px;
+            padding: 12px 20px;
             border-bottom: 1px solid #ddd;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 999;
+        }
+
+        .toolbar input[name="url"] {
+            width: min(700px, 80vw);
+            padding: 8px;
+        }
+
+        .page-container {
+            padding: 20px 30px;
         }
 
         .box {
+            max-width: 1400px;
+            margin: 0 auto;
             border: 1px solid #ddd;
-            padding: 10px;
-            background: #f9f9f9;
+            padding: 25px;
+            background: white;
+            overflow-x: auto;
         }
 
         .highlight {
             outline: 2px solid red !important;
-            background: rgba(255,0,0,0.05);
+            background: rgba(255,0,0,0.05) !important;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        table {
+            max-width: 100%;
         }
     </style>
 
@@ -38,6 +72,11 @@ HTML = """
 
         function toggleEdit(cb) {
             editMode = cb.checked;
+
+            if (!editMode && selected) {
+                selected.classList.remove("highlight");
+                selected = null;
+            }
         }
 
         function isProtected(el) {
@@ -53,7 +92,10 @@ HTML = """
 
             selected = e.target;
 
-            if (isProtected(selected)) return;
+            if (isProtected(selected)) {
+                selected = null;
+                return;
+            }
 
             selected.classList.add("highlight");
         });
@@ -76,13 +118,13 @@ HTML = """
     <form method="get">
         <input
             name="url"
-            style="width:500px"
             value="{{ url }}"
+            placeholder="https://example.com"
         >
 
-        <button>Go</button>
+        <button type="submit">Go</button>
 
-        <label style="margin-left:10px;">
+        <label style="margin-left:15px;">
             <input
                 type="checkbox"
                 onchange="toggleEdit(this)"
@@ -92,10 +134,10 @@ HTML = """
     </form>
 </div>
 
-<hr>
-
-<div class="box">
-{{ content | safe }}
+<div class="page-container">
+    <div class="box">
+        {{ content | safe }}
+    </div>
 </div>
 
 </body>
@@ -107,8 +149,7 @@ def render_page(url):
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 "
-            "(KHTML, like Gecko) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/125.0 Safari/537.36"
         )
     }
@@ -131,11 +172,11 @@ def render_page(url):
 def proxy_dom(html, base_url):
     soup = BeautifulSoup(html, "html.parser")
 
-    # Xóa JS/CSS
+    # Xóa JS, CSS nội bộ và noscript
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
 
-    # Rewrite links để duyệt tiếp qua proxy
+    # Rewrite links
     for a in soup.find_all("a", href=True):
         try:
             full_url = urljoin(base_url, a["href"])
@@ -150,7 +191,7 @@ def proxy_dom(html, base_url):
         except Exception:
             pass
 
-    # Fix CSS files
+    # Fix CSS ngoài
     for link in soup.find_all("link", href=True):
         try:
             link["href"] = urljoin(base_url, link["href"])
@@ -173,7 +214,7 @@ def index():
 
     except Exception as e:
         html = f"""
-        <h3>Error</h3>
+        <h2>Error</h2>
         <pre>{str(e)}</pre>
         """
 
