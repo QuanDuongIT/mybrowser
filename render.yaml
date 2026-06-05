@@ -5,13 +5,13 @@ services:
     plan: free
 
     envVars:
-      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
-        value: "false"
       - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /opt/render/project/.playwright
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
         value: "0"
 
     buildCommand: |
       pip install -r requirements.txt
-      playwright install --with-deps chromium
+      python -m playwright install chromium
 
     startCommand: gunicorn app:app --timeout 120
