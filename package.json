@@ -1,0 +1,9 @@
+{
+    "name": "puppeteer-proxy",
+    "version": "1.0.0",
+    "main": "browser.js",
+    "type": "commonjs",
+    "dependencies": {
+        "puppeteer": "^23.0.0"
+    }
+}

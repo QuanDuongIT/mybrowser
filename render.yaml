@@ -1,15 +1,15 @@
 services:
   - type: web
-    name: flask-playwright
-    env: python
-
-    envVars:
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /tmp/playwright
+    name: safe-dom-editor
+    runtime: python
+    plan: free
 
     buildCommand: |
       pip install -r requirements.txt
 
     startCommand: |
-      PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright python -m playwright install chromium
-      gunicorn app:app --timeout 120
+      gunicorn app:app
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
