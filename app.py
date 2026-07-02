@@ -44,7 +44,7 @@ HTML = """
 
 <meta charset="utf-8">
 
-<title>Safe DOM Editor</title>
+<title>{{ page_title }}</title>
 
 
 <style>
@@ -196,6 +196,8 @@ document.addEventListener(
 <input
 
 name="url"
+
+value="{{ current_url }}"
 
 placeholder="https://example.com"
 
@@ -449,10 +451,15 @@ def index(token=None):
 
 
 
+    page_title = url
     try:
 
 
         html=render_page(url)
+        soup = BeautifulSoup(html, "html.parser")
+
+        if soup.title and soup.title.string:
+            page_title = soup.title.string.strip()
 
 
         html=proxy_dom(
@@ -479,7 +486,11 @@ def index(token=None):
 
         HTML,
 
-        content=html
+        content=html,
+
+        page_title=page_title,
+        
+        current_url=url
 
     )
 
