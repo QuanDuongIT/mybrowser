@@ -9,9 +9,35 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from cryptography.fernet import Fernet, InvalidToken
 import requests
-
+import hashlib
 from config import FERNET_KEY
 
+import secrets
+
+TOKENS = [secrets.token_urlsafe(16) for _ in range(6)]
+def hash_tokens(tokens):
+
+    # lấy 5 ký tự đầu của mỗi token
+    data = "|".join(
+        token[:5] for token in tokens
+    )
+
+    return hashlib.sha256(
+        data.encode()
+    ).hexdigest()
+
+
+
+# tạo bản xác thực riêng
+AUTH_TOKENS = TOKENS.copy()
+
+# thay vị trí thứ 3 thành admin
+AUTH_TOKENS[2] = "admin"
+
+
+# hash bộ xác thực
+TOKENS_HASH = hash_tokens(AUTH_TOKENS)
+AUTH_OK = False
 
 app = Flask(__name__)
 
@@ -253,7 +279,119 @@ Edit mode
 """
 
 
+AUTH_HTML = """
+<!doctype html>
+<html>
+<head>
 
+<style>
+
+body{
+    margin:0;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#f2f2f2;
+    font-family:Arial;
+}
+
+
+.auth-box{
+    width:350px;
+    background:white;
+    padding:30px;
+    border-radius:12px;
+    box-shadow:0 5px 20px rgba(0,0,0,.15);
+}
+
+
+.auth-box input{
+
+    width:100%;
+    padding:12px;
+    margin:8px 0;
+
+    border:1px solid #ccc;
+    border-radius:6px;
+
+    font-size:14px;
+
+    box-sizing:border-box;
+
+}
+
+
+.auth-box input:focus{
+
+    outline:none;
+    border-color:#4285f4;
+
+}
+
+
+.auth-box button{
+
+    width:100%;
+    margin-top:15px;
+
+    padding:12px;
+
+    background:#4285f4;
+    color:white;
+
+    border:none;
+    border-radius:6px;
+
+    cursor:pointer;
+
+}
+
+
+.auth-box button:hover{
+
+    background:#3367d6;
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div class="auth-box">
+
+
+<form method="post">
+
+
+<input name="token1" value="{{ tokens[0] }}">
+<input name="token2" value="{{ tokens[1] }}">
+<input name="token3" value="{{ tokens[2] }}">
+<input name="token4" value="{{ tokens[3] }}">
+<input name="token5" value="{{ tokens[4] }}">
+<input name="token6" value="{{ tokens[5] }}">
+
+
+<button type="submit">
+Submit
+</button>
+
+
+</form>
+
+
+</div>
+
+<div class="message">
+    {{ message }}
+</div>
+</body>
+</html>
+"""
 
 def render_page(url):
 
@@ -392,17 +530,69 @@ def proxy_dom(html, base_url):
 
     return str(soup)
 
+@app.route("/auth", methods=["GET", "POST"])
+def auth():
+
+    global AUTH_OK
+
+    if request.method == "POST":
+
+        submitted = [
+            request.form.get("token1"),
+            request.form.get("token2"),
+            request.form.get("token3"),
+            request.form.get("token4"),
+            request.form.get("token5"),
+            request.form.get("token6"),
+        ]
 
 
+        if None in submitted:
+            return "Missing token"
 
+
+        check_tokens = submitted.copy()
+
+
+        if hash_tokens(check_tokens) == TOKENS_HASH:
+
+            AUTH_OK = True
+
+            return render_template_string(
+                AUTH_HTML,
+                tokens=TOKENS,
+                message="Authenticate OK"
+            )
+
+
+        AUTH_OK = False
+
+        return render_template_string(
+            AUTH_HTML,
+            tokens=TOKENS,
+            message="Authenticate FAIL"
+        )
+
+
+    return render_template_string(
+        AUTH_HTML,
+        tokens=TOKENS,
+        message=""
+    )
 
 
 @app.route("/", methods=["GET","POST"])
 @app.route("/<token>", methods=["GET"])
 def index(token=None):
 
+    global AUTH_OK
 
 
+
+
+    # nếu chưa authenticate thì bỏ token
+    if not AUTH_OK:
+        token = None
     # user nhập url
 
     if request.method=="POST":
@@ -422,8 +612,6 @@ def index(token=None):
 
 
         return redirect("/"+token)
-
-
 
 
     # không có token
