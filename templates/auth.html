@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+
+<head>
+
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #f2f2f2;
+            font-family: Arial;
+        }
+
+
+        .auth-box {
+            width: 350px;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, .15);
+        }
+
+
+        .auth-box input {
+
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+
+            border: 1px solid #ccc;
+            border-radius: 6px;
+
+            font-size: 14px;
+
+            box-sizing: border-box;
+
+        }
+
+
+        .auth-box input:focus {
+
+            outline: none;
+            border-color: #4285f4;
+
+        }
+
+
+        .auth-box button {
+
+            width: 100%;
+            margin-top: 15px;
+
+            padding: 12px;
+
+            background: #4285f4;
+            color: white;
+
+            border: none;
+            border-radius: 6px;
+
+            cursor: pointer;
+
+        }
+
+
+        .auth-box button:hover {
+
+            background: #3367d6;
+
+        }
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <div class="auth-box">
+
+
+        <form method="post">
+
+
+            <input name="token1" value="{{ tokens[0] }}">
+            <input name="token2" value="{{ tokens[1] }}">
+            <input name="token3" value="{{ tokens[2] }}">
+            <input name="token4" value="{{ tokens[3] }}">
+            <input name="token5" value="{{ tokens[4] }}">
+            <input name="token6" value="{{ tokens[5] }}">
+
+
+            <button type="submit">
+                Submit
+            </button>
+
+
+        </form>
+
+
+    </div>
+
+    <div class="message">
+        {{ message }}
+    </div>
+</body>
+
+</html>

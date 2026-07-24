@@ -4,7 +4,7 @@ if os.path.exists(".env"):
     from dotenv import load_dotenv
     load_dotenv()
 
-from flask import Flask, request, render_template_string, redirect
+from flask import Flask, request, render_template, redirect, make_response
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from cryptography.fernet import Fernet, InvalidToken
@@ -13,6 +13,8 @@ import hashlib
 from config import FERNET_KEY
 
 import secrets
+SCRIPT_STORE = {}
+ACTIVE_SCRIPTS = set()
 
 TOKENS = [secrets.token_urlsafe(16) for _ in range(6)]
 def hash_tokens(tokens):
@@ -59,340 +61,6 @@ def decrypt_url(token):
     ).decode()
 
 
-
-HTML = """
-
-<!doctype html>
-
-<html>
-
-<head>
-
-<meta charset="utf-8">
-
-<title>{{ page_title }}</title>
-
-
-<style>
-
-body{
-    margin:0;
-    font-family:Arial;
-    background:#f5f5f5;
-}
-
-
-.toolbar{
-
-    padding:15px;
-    background:white;
-    border-bottom:1px solid #ddd;
-    position:sticky;
-    top:0;
-
-}
-
-
-input{
-
-    width:600px;
-    max-width:80vw;
-    padding:8px;
-
-}
-
-
-.box{
-
-    background:white;
-    margin:20px auto;
-    max-width:1400px;
-    padding:40px;
-
-}
-
-
-.highlight{
-
-    outline:2px solid red;
-
-}
-
-
-img{
-
-    max-width:100%;
-
-}
-
-</style>
-
-
-
-<script>
-
-let editMode=false;
-let selected=null;
-
-
-function toggleEdit(x){
-
-    editMode=x.checked;
-
-}
-
-
-
-function protectedNode(el){
-
-    return el.closest(".protected");
-
-}
-
-
-
-document.addEventListener(
-"mouseover",
-e=>{
-
-
-    if(!editMode)
-        return;
-
-
-    if(selected)
-        selected.classList.remove("highlight");
-
-
-    selected=e.target;
-
-
-    if(protectedNode(selected)){
-        selected=null;
-        return;
-    }
-
-
-    selected.classList.add("highlight");
-
-});
-
-
-
-document.addEventListener(
-"mouseup",
-()=>{
-
-
-    if(!editMode || !selected)
-        return;
-
-
-    if(protectedNode(selected))
-        return;
-
-
-    selected.style.display="none";
-
-    selected.classList.remove("highlight");
-
-    selected=null;
-
-
-});
-
-
-</script>
-
-
-</head>
-
-
-
-<body>
-
-
-
-<div class="toolbar protected">
-
-
-<form method="post" action="/">
-
-
-<input
-
-name="url"
-
-value="{{ current_url }}"
-
-placeholder="https://example.com"
-
-/>
-
-
-<button>
-
-Go
-
-</button>
-
-
-<label>
-
-<input
-
-type="checkbox"
-
-onchange="toggleEdit(this)"
-
->
-
-Edit mode
-
-</label>
-
-
-</form>
-
-
-</div>
-
-
-
-
-
-<div class="box">
-
-
-{{content | safe}}
-
-
-</div>
-
-
-
-</body>
-
-
-</html>
-
-"""
-
-
-AUTH_HTML = """
-<!doctype html>
-<html>
-<head>
-
-<style>
-
-body{
-    margin:0;
-    height:100vh;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    background:#f2f2f2;
-    font-family:Arial;
-}
-
-
-.auth-box{
-    width:350px;
-    background:white;
-    padding:30px;
-    border-radius:12px;
-    box-shadow:0 5px 20px rgba(0,0,0,.15);
-}
-
-
-.auth-box input{
-
-    width:100%;
-    padding:12px;
-    margin:8px 0;
-
-    border:1px solid #ccc;
-    border-radius:6px;
-
-    font-size:14px;
-
-    box-sizing:border-box;
-
-}
-
-
-.auth-box input:focus{
-
-    outline:none;
-    border-color:#4285f4;
-
-}
-
-
-.auth-box button{
-
-    width:100%;
-    margin-top:15px;
-
-    padding:12px;
-
-    background:#4285f4;
-    color:white;
-
-    border:none;
-    border-radius:6px;
-
-    cursor:pointer;
-
-}
-
-
-.auth-box button:hover{
-
-    background:#3367d6;
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-
-<div class="auth-box">
-
-
-<form method="post">
-
-
-<input name="token1" value="{{ tokens[0] }}">
-<input name="token2" value="{{ tokens[1] }}">
-<input name="token3" value="{{ tokens[2] }}">
-<input name="token4" value="{{ tokens[3] }}">
-<input name="token5" value="{{ tokens[4] }}">
-<input name="token6" value="{{ tokens[5] }}">
-
-
-<button type="submit">
-Submit
-</button>
-
-
-</form>
-
-
-</div>
-
-<div class="message">
-    {{ message }}
-</div>
-</body>
-</html>
-"""
-
 def render_page(url):
 
 
@@ -429,34 +97,117 @@ def render_page(url):
 
 
 
+def rewrite_css(css, base_url):
 
+    import re
+
+
+    def replace_url(match):
+
+        raw = match.group(1).strip()
+
+
+        # bỏ dấu quote
+        raw = raw.strip("\"'")
+
+
+        # không proxy các loại này
+        if (
+            raw.startswith("data:")
+            or
+            raw.startswith("http://")
+            or
+            raw.startswith("https://")
+            or
+            raw.startswith("//")
+            or
+            raw.startswith("#")
+        ):
+
+            return "url(" + raw + ")"
+
+
+        full = urljoin(
+            base_url,
+            raw
+        )
+
+
+        token = encrypt_url(full)
+
+
+        return 'url("/resource/' + token + '")'
+
+
+    # bắt url(...) nhưng không ăn dấu ngoặc bên trong
+    pattern = r"url\((?!data:)([^)]*)\)"
+
+
+    css = re.sub(
+        pattern,
+        replace_url,
+        css,
+        flags=re.I
+    )
+
+
+    return css
 
 def proxy_dom(html, base_url):
 
-
-    soup=BeautifulSoup(
+    soup = BeautifulSoup(
         html,
         "html.parser"
     )
 
+    scripts = []
 
 
-    # bỏ javascript
+    # =========================
+    # JAVASCRIPT WHITELIST
+    # =========================
 
-    for tag in soup(
-        [
-            "script",
-            "style",
-            "noscript"
-        ]
-    ):
+    for script in soup.find_all("script"):
 
-        tag.decompose()
+        content = str(script)
 
 
+        sid = hashlib.sha256(
+            content.encode()
+        ).hexdigest()[:12]
 
 
-    # link -> token
+        SCRIPT_STORE[sid] = content
+
+
+        src = script.get("src")
+
+
+        name = src if src else "inline script"
+
+
+        scripts.append(
+            {
+                "id": sid,
+                "name": name,
+                "active": sid in ACTIVE_SCRIPTS,
+                "effect": False
+            }
+        )
+
+
+        if sid not in ACTIVE_SCRIPTS:
+
+            script.attrs = {
+                "type": "text/plain",
+                "data-disabled": sid
+            }
+
+
+
+    # =========================
+    # LINK HTML
+    # =========================
 
     for a in soup.find_all(
         "a",
@@ -465,70 +216,185 @@ def proxy_dom(html, base_url):
 
         try:
 
-            full=urljoin(
+            full = urljoin(
                 base_url,
                 a["href"]
             )
 
 
-            token=encrypt_url(full)
+            a["href"] = (
+                "/" + encrypt_url(full)
+            )
 
 
-            a["href"]="/"+token
-
-
-        except:
-
+        except Exception:
             pass
 
 
 
-
-
-    # ảnh
+    # =========================
+    # IMAGE
+    # =========================
 
     for img in soup.find_all(
         "img",
         src=True
     ):
 
-
         try:
 
-            img["src"]=urljoin(
+            full = urljoin(
                 base_url,
                 img["src"]
             )
 
-        except:
 
+            img["src"] = (
+                "/resource/" +
+                encrypt_url(full)
+            )
+
+
+        except Exception:
             pass
 
 
 
-
-    # css
+    # =========================
+    # CSS LINK
+    # =========================
 
     for link in soup.find_all(
         "link",
         href=True
     ):
 
-
         try:
 
-            link["href"]=urljoin(
+            full = urljoin(
                 base_url,
                 link["href"]
             )
 
-        except:
 
+            link["href"] = (
+                "/resource/" +
+                encrypt_url(full)
+            )
+
+
+        except Exception:
             pass
 
 
 
-    return str(soup)
+    # =========================
+    # INLINE STYLE
+    # =========================
+
+    for tag in soup.find_all(
+        style=True
+    ):
+
+        try:
+
+            tag["style"] = rewrite_css(
+                tag["style"],
+                base_url
+            )
+
+        except Exception:
+            pass
+
+
+
+    return str(soup), scripts
+
+@app.route("/enable", methods=["POST"])
+def enable_scripts():
+
+    global ACTIVE_SCRIPTS
+
+
+    selected = set(
+        request.form.getlist("scripts")
+    )
+
+
+    ACTIVE_SCRIPTS = selected
+
+    if request.referrer:
+        return redirect(request.referrer)
+    else:
+        return redirect("/")
+  
+@app.route("/resource/<token>")
+def resource(token):
+
+    try:
+
+        url = decrypt_url(token)
+        if url.startswith("data:"):
+            return "Blocked data URI", 400
+        
+        print("RESOURCE URL:", url)
+
+
+        r = requests.get(
+            url,
+            headers={
+                "User-Agent":"Mozilla/5.0"
+            },
+            timeout=20
+        )
+
+
+        print(
+            "STATUS:",
+            r.status_code,
+            "TYPE:",
+            r.headers.get("Content-Type")
+        )
+
+
+        content_type = r.headers.get(
+            "Content-Type",
+            ""
+        )
+
+
+        if "text/css" in content_type or url.endswith(".css"):
+
+            r.encoding = r.apparent_encoding
+
+            css = rewrite_css(
+                r.text,
+                url
+            )
+
+            response = make_response(css)
+
+            response.headers["Content-Type"]="text/css"
+
+            return response
+
+
+        response = make_response(r.content)
+
+        if content_type:
+            response.headers["Content-Type"]=content_type
+
+        return response
+
+
+    except Exception as e:
+
+        print(
+            "RESOURCE ERROR:",
+            repr(e)
+        )
+
+        return "RESOURCE ERROR: "+str(e),500
 
 @app.route("/auth", methods=["GET", "POST"])
 def auth():
@@ -558,8 +424,8 @@ def auth():
 
             AUTH_OK = True
 
-            return render_template_string(
-                AUTH_HTML,
+            return render_template(
+                "auth.html",
                 tokens=TOKENS,
                 message="Authenticate OK"
             )
@@ -567,28 +433,38 @@ def auth():
 
         AUTH_OK = False
 
-        return render_template_string(
-            AUTH_HTML,
+        return render_template(
+            "auth.html",
             tokens=TOKENS,
             message="Authenticate FAIL"
         )
 
-
-    return render_template_string(
-        AUTH_HTML,
+    return render_template(
+        "auth.html",
         tokens=TOKENS,
-        message=""
+        message="Authenticate FAIL"
     )
 
-
-@app.route("/", methods=["GET","POST"])
-@app.route("/<token>", methods=["GET"])
-def index(token=None):
+@app.route("/logout", methods=["POST"])
+def logout():
 
     global AUTH_OK
 
+    AUTH_OK = False
 
+    ACTIVE_SCRIPTS.clear()
 
+    return {
+        "status": "success",
+        "message": "Logout successful"
+    }
+
+@app.route("/", methods=["GET","POST"])
+@app.route("/<token>", methods=["GET", "POST"])
+def index(token=None):
+
+    global AUTH_OK
+    message = request.args.get("message", "")
 
     # nếu chưa authenticate thì bỏ token
     if not AUTH_OK:
@@ -597,13 +473,12 @@ def index(token=None):
 
     if request.method=="POST":
 
-
         raw=request.form.get(
-            "url"
+            "current_url"
         )
 
-
         if not raw:
+            print("not raw")
 
             return redirect("/")
 
@@ -622,8 +497,6 @@ def index(token=None):
 
         token=encrypt_url(url)
 
-
-
     else:
 
 
@@ -636,12 +509,10 @@ def index(token=None):
 
             return "Invalid token"
 
-
-
-
     page_title = url
-    try:
+    scripts = []
 
+    try:
 
         html=render_page(url)
         soup = BeautifulSoup(html, "html.parser")
@@ -650,15 +521,12 @@ def index(token=None):
             page_title = soup.title.string.strip()
 
 
-        html=proxy_dom(
+        html, scripts =proxy_dom(
             html,
             url
         )
 
-
-
     except Exception as e:
-
 
         html=f"""
 
@@ -668,23 +536,14 @@ def index(token=None):
 
         """
 
-
-
-    return render_template_string(
-
-        HTML,
-
+    return render_template(
+        "index.html",
         content=html,
-
         page_title=page_title,
-        
-        current_url=url
-
+        current_url=url,
+        scripts=scripts,
+        message=message
     )
-
-
-
-
 
 
 if __name__=="__main__":

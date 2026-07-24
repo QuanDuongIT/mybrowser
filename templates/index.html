@@ -1,0 +1,490 @@
+<!doctype html>
+
+<html>
+
+<head>
+
+    <meta charset="utf-8">
+
+    <title>{{ page_title }}</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial;
+            background: #f5f5f5;
+        }
+
+
+        .toolbar {
+            padding: 15px;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+
+        .toolbar-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+
+        .url-form {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+
+        .url-form input {
+
+            flex: 1;
+            min-width: 300px;
+            padding: 8px;
+
+        }
+
+
+        .url-form button {
+
+            white-space: nowrap;
+
+        }
+
+
+        .box {
+
+            background: white;
+            margin: 0;
+            padding: 0;
+
+        }
+
+
+        .script-list {
+
+            margin-top: 10px;
+            max-height: 300px;
+            overflow: auto;
+            padding: 10px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+
+        }
+
+
+        button {
+
+            padding: 8px 12px;
+            cursor: pointer;
+
+        }
+
+
+        .loop {
+
+            color: red;
+            font-weight: bold;
+
+        }
+
+
+        img {
+
+            max-width: 100%;
+
+        }
+
+
+        .highlight {
+
+            outline: 2px solid red;
+
+        }
+    </style>
+
+
+    <script>
+
+
+        let editMode = false;
+        let selected = null;
+
+
+
+        function toggleEdit(x) {
+
+            editMode = x.checked;
+
+        }
+
+
+
+        function toggleScriptList() {
+
+            let box = document.getElementById(
+                "scriptList"
+            );
+
+
+            if (box.style.display === "none") {
+
+                box.style.display = "block";
+
+            }
+            else {
+
+                box.style.display = "none";
+
+            }
+
+        }
+
+
+
+        function selectAllScripts() {
+
+            let boxes = document.querySelectorAll(
+                ".script-checkbox"
+            );
+
+
+            boxes.forEach(
+                box => {
+                    box.checked = true;
+                }
+            );
+
+        }
+
+
+
+        function unselectAllScripts() {
+
+            let boxes = document.querySelectorAll(
+                ".script-checkbox"
+            );
+
+
+            boxes.forEach(
+                box => {
+                    box.checked = false;
+                }
+            );
+
+        }
+
+
+
+        function logout() {
+
+            fetch("/logout", {
+
+                method: "POST"
+
+            })
+
+                .then(
+                    response => response.json()
+                )
+
+                .then(
+                    data => {
+
+                        let msg = document.getElementById(
+                            "logoutMessage"
+                        );
+
+
+                        msg.innerHTML = data.message;
+
+                        msg.style.display = "block";
+
+                        msg.style.background = "#d4edda";
+                        msg.style.color = "#155724";
+
+                    }
+
+                );
+
+        }
+
+
+
+        function protectedNode(el) {
+
+            return el.closest(".protected");
+
+        }
+
+
+
+        document.addEventListener(
+            "mouseover",
+            e => {
+
+
+                if (!editMode)
+                    return;
+
+
+                if (selected)
+                    selected.classList.remove(
+                        "highlight"
+                    );
+
+
+                selected = e.target;
+
+
+                if (protectedNode(selected)) {
+
+                    selected = null;
+
+                    return;
+
+                }
+
+
+                selected.classList.add(
+                    "highlight"
+                );
+
+
+            });
+
+
+
+
+
+        document.addEventListener(
+            "mouseup",
+            () => {
+
+
+                if (!editMode || !selected)
+                    return;
+
+
+                if (protectedNode(selected))
+                    return;
+
+
+                selected.style.display = "none";
+
+
+                selected.classList.remove(
+                    "highlight"
+                );
+
+
+                selected = null;
+
+
+            });
+
+
+    </script>
+
+
+</head>
+
+
+<body>
+
+
+    <div class="toolbar protected">
+
+
+        <div class="toolbar-row">
+
+
+
+            {% if scripts %}
+
+            <button type="button" onclick="toggleScriptList()">
+
+                whitelist ▼
+
+            </button>
+
+            {% endif %}
+
+
+
+
+
+            <div class="url-form">
+
+
+                <form method="post" action="{{ request.path }}" style="display:flex;flex:1;gap:8px;">
+
+
+                    <input name="current_url" value="{{ current_url }}" placeholder="https://example.com">
+
+
+                    <button type="submit">
+
+                        Update URL
+
+                    </button>
+
+
+                </form>
+
+
+
+
+
+                <button type="button" onclick="logout()" style="
+background:#d9534f;
+color:white;
+">
+
+                    Logout
+
+                </button>
+
+
+
+            </div>
+
+
+        </div>
+
+
+
+
+
+        <div id="logoutMessage" style="
+            display:none;
+            padding:10px;
+            margin-top:10px;
+            border-radius:5px;
+            ">
+
+        </div>
+
+
+
+
+
+        {% if scripts %}
+
+
+        <div id="scriptList" class="script-list" style="display:none;">
+
+
+
+            <form method="post" action="/enable">
+
+
+
+                <button type="button" onclick="selectAllScripts()">
+
+                    Select all
+
+                </button>
+
+
+
+                <button type="button" onclick="unselectAllScripts()">
+
+                    Unselect all
+
+                </button>
+
+                <br><br>
+
+
+
+
+                {% for s in scripts %}
+
+
+
+                <label>
+
+
+
+                    <input class="script-checkbox" type="checkbox" name="scripts" value="{{s.id}}" {% if s.active %}
+                        checked {% endif %}>
+
+
+
+                    {{s.id}} :
+
+                    {{s.name}}
+
+
+
+                    {% if s.effect %}
+
+                    <span class="loop">
+
+                        LOOP
+
+                    </span>
+
+                    {% endif %}
+
+
+
+                </label>
+
+
+
+                <br>
+
+
+
+                {% endfor %}
+
+
+
+
+                <br>
+
+
+                <button type="submit">
+
+                    Enable selected
+
+                </button>
+
+
+            </form>
+
+
+        </div>
+
+
+        {% endif %}
+
+
+
+    </div>
+
+
+
+    <div class="box">
+
+
+        {{content | safe}}
+
+
+    </div>
+
+
+
+</body>
+
+
+</html>
